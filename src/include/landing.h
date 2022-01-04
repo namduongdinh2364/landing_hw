@@ -16,7 +16,7 @@
 #define YAW_ANGLE(x)    (x * (180 / PI))
 #define RATODE(x)       (x / (180 / PI))
 
-#define DISTANCE        0.3
+#define DISTANCE        0.5
 #define NSTEP   4
 #define HeightChangeAngle       7
 #define IncreaseHeightNotDetect 1

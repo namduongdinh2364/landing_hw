@@ -24,5 +24,5 @@ include_directories(
         ${catkin_INCLUDE_DIRS}
 )
 
-add_executable(aruco_detector_node src/aruco_detector_node.cpp)
-target_link_libraries(aruco_detector_node ${catkin_LIBRARIES})
+# add_executable(aruco_detector_node src/aruco_detector_node.cpp)
+# target_link_libraries(aruco_detector_node ${catkin_LIBRARIES})

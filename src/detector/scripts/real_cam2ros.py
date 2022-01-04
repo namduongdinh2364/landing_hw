@@ -14,7 +14,9 @@ def main():
     rospy.init_node('Realsense_camera', anonymous=True)
     image_pub = rospy.Publisher("image_rgb_topic", Image, queue_size=50)
     bridge = CvBridge()
+    rate = rospy.Rate(20)
 
+    """ Prepare for Realsense camrea """
     # Configure color streams
     pipeline = rs.pipeline()
     config = rs.config()
@@ -38,6 +40,7 @@ def main():
     # Start streaming
     pipeline.start(config)
 
+    """ Start convert Image """
     while not rospy.is_shutdown():
         # Wait for a coherent pair of color frame
         frames = pipeline.wait_for_frames()
@@ -54,6 +57,7 @@ def main():
         # cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE)
         # cv2.imshow('RealSense', color_image)
         # cv2.waitKey(1)
+        rate.sleep()
 
     # Stop streaming
     pipeline.stop()

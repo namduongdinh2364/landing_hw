@@ -30,8 +30,9 @@ time_t time_now = time(0);
 tm *ltime = localtime(&time_now);
 
 static geometry_msgs::PoseStamped mavros_local_position_pose;
-static geometry_msgs::PoseStamped desPose;
+static geometry_msgs::PoseStamped desPose, mov2CurPose;
 static Matrix3f imu_rotation_matrix;
+static Vector3f drone_postition, NEU_postition, point_change, NEU_postition_change;
 static bool locked_trans = true;
 static bool accept_trans = true;
 static bool marker_detected = false;
@@ -39,16 +40,13 @@ static int stable_loop = 0;
 static bool locked_landing = false;
 static bool accept_landing = false;
 int detect_failed_repeat = 0;
-int max_repeat_dectec = 5;
+int max_repeat_dectec = 10;
 float minutes = 0;
 float seconds = 0;
 
 ros::Time last_time_trans, stable_time_trans, time_increase_repeat_trans;
 
-static double x, y, z;
 static double x_ = 0, y_ = 0, z_ = 0;
-Matrix3f R, cam2imu_rotation, cam2imu_rotation_april;
-Vector3f drone_postition, cam_position, NEU_postition, point_change, NEU_postition_change;
 
 /**
  * @brief Get local position form mavros
@@ -81,7 +79,7 @@ void imuPose_Callback(const sensor_msgs::Imu::ConstPtr& msg)
  *
  * @return 
  */
-static void get_info_form_marker_Callback(const tf2_msgs::TFMessage::ConstPtr& msg)
+static void get_info_form_marker_Callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
         last_time_trans = TIME_NOW;
         marker_detected = true;
@@ -102,58 +100,52 @@ static void get_info_form_marker_Callback(const tf2_msgs::TFMessage::ConstPtr& m
                         accept_trans = false;
                 }
 
-                double xq, yq, zq, wq;
-                Quaternionf quat;
-                Matrix3f R1;
-                cam2imu_rotation << -0.0001, -1, 0, -1, 0, 0, -0.0001, 0, -1;
-                /* Marker ----> camera */
-                cam_position[0] = msg->transforms[0].transform.translation.x;
-                cam_position[1] = msg->transforms[0].transform.translation.y;
-                cam_position[2] = msg->transforms[0].transform.translation.z;
-
-                xq = msg->transforms[0].transform.rotation.x;
-                yq = msg->transforms[0].transform.rotation.y;
-                zq = msg->transforms[0].transform.rotation.z;
-                wq = msg->transforms[0].transform.rotation.w;
-
                 /* Marker ----> Drone */
-                drone_postition = cam2imu_rotation * cam_position;
+                drone_postition[0] = msg->pose.position.x;
+                drone_postition[1] = msg->pose.position.y;
+                drone_postition[2] = msg->pose.position.z;
+
+                mov2CurPose.pose.orientation.x = msg->pose.orientation.x;
+                mov2CurPose.pose.orientation.y = msg->pose.orientation.y;
+                mov2CurPose.pose.orientation.z = msg->pose.orientation.z;
+                mov2CurPose.pose.orientation.w = msg->pose.orientation.w;
+
                 /* Marker ----> NEU */
                 NEU_postition = imu_rotation_matrix * drone_postition;
                 /* update the position */
-                double alpha, OR, A1E, Y2, X2, Z2;
-                OR = (float)sqrt(pow(drone_postition[0],2) + pow(drone_postition[1],2));
-                alpha = atan (OR/drone_postition[2]) * 180 / PI;
-                A1E = (OR *( abs(drone_postition[2]) - HeightChangeAngle )) / abs(drone_postition[2]);
-                point_change[1] = (drone_postition[1] * A1E) / OR;
-                point_change[0] = (drone_postition[0] * A1E) / OR;
-                point_change[2] = drone_postition[2] + HeightChangeAngle;
-                NEU_postition_change = R*point_change;
+                // double alpha, OR, A1E, Y2, X2, Z2;
+                // OR = (float)sqrt(pow(drone_postition[0],2) + pow(drone_postition[1],2));
+                // alpha = atan (OR/drone_postition[2]) * 180 / PI;
+                // A1E = (OR *( abs(drone_postition[2]) - HeightChangeAngle )) / abs(drone_postition[2]);
+                // point_change[1] = (drone_postition[1] * A1E) / OR;
+                // point_change[0] = (drone_postition[0] * A1E) / OR;
+                // point_change[2] = drone_postition[2] + HeightChangeAngle;
+                // NEU_postition_change = imu_rotation_matrix*point_change;
                 if(!locked_trans) {
-                        x = NEU_postition[0];
-                        y = NEU_postition[1];
-                        z = NEU_postition[2];
-                        /* Convert float round 2 */
-                        x = PRECISION(x);
-                        y = PRECISION(y);
-                        z = PRECISION(z);
+                        mov2CurPose.pose.position.x = NEU_postition[0] + mavros_local_position_pose.pose.position.x;
+                        mov2CurPose.pose.position.y = NEU_postition[1] + mavros_local_position_pose.pose.position.y;
+                        mov2CurPose.pose.position.z = NEU_postition[2] + mavros_local_position_pose.pose.position.z;
 
-                        x_ = NEU_postition_change[0]+mavros_local_position_pose.pose.position.x;
-                        y_ = NEU_postition_change[1]+mavros_local_position_pose.pose.position.y;
-                        z_ = NEU_postition_change[2]+mavros_local_position_pose.pose.position.z;
-                        x_ = PRECISION(x_);
-                        y_ = PRECISION(y_);
-                        z_ = PRECISION(z_);
+                        mov2CurPose.pose.position.x = PRECISION(mov2CurPose.pose.position.x);
+                        mov2CurPose.pose.position.y = PRECISION(mov2CurPose.pose.position.y);
+                        mov2CurPose.pose.position.z = PRECISION(mov2CurPose.pose.position.z);
+
+                        // mov2CurPose.pose.position.x = NEU_postition_change[0] + mavros_local_position_pose.pose.position.x;
+                        // mov2CurPose.pose.position.y = NEU_postition_change[1] + mavros_local_position_pose.pose.position.y;
+                        // mov2CurPose.pose.position.z = NEU_postition_change[2] + mavros_local_position_pose.pose.position.z;
+                        // x_ = PRECISION(x_);
+                        // y_ = PRECISION(y_);
+                        // z_ = PRECISION(z_);
                 }
                 /* Used for control with pose */
-                radius = (float)sqrt(pow(NEU_postition[0] - mavros_local_position_pose.pose.position.x,2) + pow(NEU_postition[1] - mavros_local_position_pose.pose.position.y,2));
+                radius = (float)sqrt(pow(drone_postition[0],2) + pow(drone_postition[1],2));
                 if(radius <= DISTANCE) {
-                        desPose.pose.position.x = x;
-                        desPose.pose.position.y = y;
+                        desPose.pose.position.x = mov2CurPose.pose.position.x;
+                        desPose.pose.position.y = mov2CurPose.pose.position.y;
 
-                        if (mavros_local_position_pose.pose.position.z >= PRECISION(z) + 0.9) {
-                                if (desPose.pose.position.z <= PRECISION(z) + 0.5) {
-                                        desPose.pose.position.z = PRECISION(z) + 0.5;
+                        if (mavros_local_position_pose.pose.position.z >= 0.8) {
+                                if (desPose.pose.position.z <= PRECISION(mov2CurPose.pose.position.z) + 0.5) {
+                                        desPose.pose.position.z = PRECISION(mov2CurPose.pose.position.z) + 0.5;
                                 } else {
                                         desPose.pose.position.z = mavros_local_position_pose.pose.position.z - 2.0;
                                 }
@@ -181,18 +173,17 @@ static void get_info_form_marker_Callback(const tf2_msgs::TFMessage::ConstPtr& m
         //     }
         // } 
                 else {
-                        desPose.pose.position.x = x;
-                        desPose.pose.position.y = y;
+                        desPose.pose.position.x = mov2CurPose.pose.position.x;
+                        desPose.pose.position.y = mov2CurPose.pose.position.y;
                         desPose.pose.position.z = mavros_local_position_pose.pose.position.z;
                         ROS_INFO("Aligning........!");
                 }
 
-                desPose.pose.orientation.x = xq;
-                desPose.pose.orientation.y = yq;
-                desPose.pose.orientation.z = zq;
-                desPose.pose.orientation.w = wq;
+                desPose.pose.orientation.x = mov2CurPose.pose.orientation.x;
+                desPose.pose.orientation.y = mov2CurPose.pose.orientation.y;
+                desPose.pose.orientation.z = mov2CurPose.pose.orientation.z;
+                desPose.pose.orientation.w = mov2CurPose.pose.orientation.w;
                 locked_trans = true;
-
                 /**
                  * stable param
                 */
@@ -203,13 +194,10 @@ static void get_info_form_marker_Callback(const tf2_msgs::TFMessage::ConstPtr& m
                 }
 
 #ifdef LOG_INFO
-                cout<< "Marker2Cam : " << PRECISION(cam_position[0]) << '\t'
-                                       << PRECISION(cam_position[1]) << '\t'
-                                       << PRECISION(cam_position[2]) << endl;
                 cout<< "Marker2Drone : " << PRECISION(drone_postition[0]) <<'\t'
                                          << PRECISION(drone_postition[1]) << '\t'
                                          << PRECISION(drone_postition[2]) << endl;
-                cout<< "Marker2NEU : " << x <<'\t'<< y << '\t' << z << endl;
+                cout<< "Marker2NEU : " << mov2CurPose.pose.position.x <<'\t'<< mov2CurPose.pose.position.y << '\t' << mov2CurPose.pose.position.z << endl;
                 cout<< "Drone : " << PRECISION(mavros_local_position_pose.pose.position.x) << "\t"
                                   << PRECISION(mavros_local_position_pose.pose.position.y) << "\t"
                                   << PRECISION(mavros_local_position_pose.pose.position.z) << endl;
@@ -253,8 +241,8 @@ int main(int argc, char **argv) {
                 ("/mavros/imu/data", 10, imuPose_Callback);
         ros::Subscriber mavros_local_position_sub = transform.subscribe<geometry_msgs::PoseStamped>
                 ("/mavros/local_position/pose", 10, mavrosPose_Callback);
-        ros::Subscriber pose_sub = transform.subscribe
-                ("/tf_list", 10, get_info_form_marker_Callback);
+        ros::Subscriber marker_pose_sub = transform.subscribe<geometry_msgs::PoseStamped>
+                ("marker/imu_position/pose", 10, get_info_form_marker_Callback);
         ros::Subscriber mavros_setpoint_position_local_sub = transform.subscribe<geometry_msgs::PoseStamped>
                 ("mavros/setpoint_position/local", 10, get_current_setpoint_position_local_Callback);
         ros::Publisher set_desposition_local_pub = transform.advertise<geometry_msgs::PoseStamped>
@@ -291,6 +279,7 @@ int main(int argc, char **argv) {
                         desPose.pose.position.z = mavros_local_position_pose.pose.position.z + IncreaseHeightNotDetect;
                         if((TIME_NOW - last_time_trans > TIME_DURATION(timeout_trans)) || detect_failed_repeat == max_repeat_dectec) {
                                 cout << "\x1B[31mDetection failed: Timeout\033[0m\t" <<endl;
+                                accept_landing = true;
                         }
                 }
 

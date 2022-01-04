@@ -103,6 +103,10 @@ void getDestinatonPose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
         q.setValue(xq, yq, zq, wq);
         tf2::Matrix3x3(q).getRPY(m_roll, m_pitch, m_yaw);
 
+        /**
+         * If yaw into range of +- 10 degrees.
+         * It should be continually updated orientation
+         */
         if (YAW_ANGLE(m_yaw) >= 10 || YAW_ANGLE(m_yaw) <= -10) {
                 q_update = AngleAxisf(0, Vector3f::UnitX()) *
                            AngleAxisf(0, Vector3f::UnitY()) *
@@ -113,10 +117,9 @@ void getDestinatonPose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
         desPose.pose.orientation.y = q_update.y();
         desPose.pose.orientation.z = q_update.z();
         desPose.pose.orientation.w = q_update.w();
-
-        // output_yaw = pid_yaw.getOutput(PRECISION(cur_yaw), PRECISION(cur_yaw - m_yaw));
-        // output_yaw = PRECISION(output_yaw);
-        // desVelocity.twist.angular.z = output_yaw;
+        cout<< "Marker2Drone : " << PRECISION(desPose.pose.position.x) <<'\t'
+                                 << PRECISION(desPose.pose.position.y) << '\t'
+                                 << PRECISION(desPose.pose.position.z) << endl;
 }
 
 int main(int argc, char **argv) {
@@ -129,33 +132,15 @@ int main(int argc, char **argv) {
         cout<< "\\_|     \\/   \\/     |_/   \\_____/  \\_____/\n\n" <<endl;
         cout << "-------Mode OFFBOARD CONTROL-------"<< endl;
         cout << "======================================="<< endl;
-        cout << "\U0001F449 1: Control follow local position    |"<< endl;
-        cout << "\U0001F449 2: Control follow PID               |"<< endl;
+        cout << "\U0001F449 Control follow local position"<< endl;
         cout << "======================================="<< endl;
-        cout << " \x1B[93m\u262D ENTER Option:\033[0m ";
 
-        int selectedMode;
-        cin >> selectedMode;
         /* Init position */
-        switch(selectedMode) {
-                case POINT:
-                        cout << "PLEASE ENTER INIT POSITION Local ENU frame [x y z]: ";
-                        cin  >> desPose.pose.position.x >> desPose.pose.position.y >> desPose.pose.position.z;
-                        cout << "\x1B[93mAxis x\033[0m : " << desPose.pose.position.x << "m" << endl;
-                        cout << "\x1B[93mAxis y\033[0m : " << desPose.pose.position.y << "m" << endl;
-                        cout << "\x1B[93mAxis z\033[0m : " << desPose.pose.position.z << "m" << endl;
-                        break;
-                case PID:
-                        cout << "PID controller is chosen \nENTER INIT POSITION Local ENU frame [x y z]: ";
-                        cin  >> desPose.pose.position.x >> desPose.pose.position.y >> desPose.pose.position.z;
-                        cout << "\x1B[93mAxis x\033[0m : " << desPose.pose.position.x << "m" << endl;
-                        cout << "\x1B[93mAxis y\033[0m : " << desPose.pose.position.y << "m" << endl;
-                        cout << "\x1B[93mAxis z\033[0m : " << desPose.pose.position.z << "m" << endl;
-                        break;
-                default:
-                        cout << "not yet support" << endl;
-                        exit(0);
-        }
+        cout << "\x1B[93m\u262D PLEASE ENTER INIT POSITION Local ENU frame [x y z] = \033[0m";
+        cin  >> desPose.pose.position.x >> desPose.pose.position.y >> desPose.pose.position.z;
+        cout << "\x1B[93mAxis x\033[0m : " << desPose.pose.position.x << "m" << endl;
+        cout << "\x1B[93mAxis y\033[0m : " << desPose.pose.position.y << "m" << endl;
+        cout << "\x1B[93mAxis z\033[0m : " << desPose.pose.position.z << "m" << endl;
 
         ros::init(argc, argv, "offboard_node");
         ros::NodeHandle nh;
@@ -180,17 +165,6 @@ int main(int argc, char **argv) {
                 ("mavros/setpoint_velocity/cmd_vel", 10);
         ros::Rate rate(20.0);
 
-        if(selectedMode == PID) {
-                // pid_x.setOutputLimits(-4.0, 4.0);
-                // pid_y.setOutputLimits(-4.0, 4.0);
-                // pid_z.setOutputLimits(-2.0, 2.0);
-                // pid_yaw.setOutputLimits(-0.1745329, 0.1745329);
-                // pid_x.setOutputRampRate(0.02);
-                // pid_y.setOutputRampRate(0.02);
-                // pid_z.setOutputRampRate(0.5);
-                // pid_yaw.setOutputRampRate(0.01);
-        }
-
         /* wait for FCU connection */
         while(ros::ok() && !current_state.connected) {
                 ros::spinOnce();
@@ -204,10 +178,10 @@ int main(int argc, char **argv) {
         arm_cmd.request.value = true;
         ros::Time last_time = ros::Time::now();
 
-        desPose.pose.orientation.x = 0;
-        desPose.pose.orientation.y = 0;
-        desPose.pose.orientation.z = 0.3826834;
-        desPose.pose.orientation.w = 0.9238795;
+        // desPose.pose.orientation.x = 0;
+        // desPose.pose.orientation.y = 0;
+        // desPose.pose.orientation.z = 0.3826834;
+        // desPose.pose.orientation.w = 0.9238795;
 
         while(ros::ok()) {
 #ifdef HITL
@@ -244,40 +218,9 @@ int main(int argc, char **argv) {
                                 last_time = ros::Time::now();
                         }
                 }
+              
+                mavros_setpoint_position_local_pub.publish(desPose);
 
-                if(selectedMode == PID) {
-                        // if (abs(mavros_local_position_pose.pose.position.x - desPose.pose.position.x) <= 2) {
-                        //         pid_x.setOutputLimits(-2.0, 2.0);
-                        //         pid_y.setOutputLimits(-2.0, 2.0);
-                        // } else {
-                        //         pid_x.setOutputLimits(-4.0, 4.0);
-                        //         pid_y.setOutputLimits(-4.0, 4.0);
-                        // }
-
-                        // output_x = pid_x.getOutput(PRECISION(mavros_local_position_pose.pose.position.x), desPose.pose.position.x);
-                        // output_y = pid_y.getOutput(PRECISION(mavros_local_position_pose.pose.position.y), desPose.pose.position.y);
-                        // output_z = pid_z.getOutput(PRECISION(mavros_local_position_pose.pose.position.z), desPose.pose.position.z);
-
-                        // output_x = PRECISION(output_x);
-                        // output_y = PRECISION(output_y);
-                        // output_z = PRECISION(output_z);
-
-                        // desVelocity.twist.linear.x = output_x;
-                        // desVelocity.twist.linear.y = output_y;
-                        // desVelocity.twist.linear.z = output_z;
-                }
-                
-                switch(selectedMode) {
-                        case POINT:
-                                mavros_setpoint_position_local_pub.publish(desPose);
-                                break;
-                                case PID:
-                                mavros_setpoint_velocity_cmd_vel_pub.publish(desVelocity);
-                                break;
-                        default:
-                                cout << "not yet support" << endl;
-                                exit(1);
-                }
                 ros::spinOnce();
                 rate.sleep();
         }
