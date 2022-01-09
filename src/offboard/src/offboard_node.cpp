@@ -90,6 +90,14 @@ void getDestinatonPose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
         desPose.pose.position.y = msg->pose.position.y;
         desPose.pose.position.z = msg->pose.position.z;
 
+        /**
+         * If the destination greater than the maximum altitude,
+         * it should be set to the value MAX_ALTITUDE.
+         */
+        if(MAX_ALTITUDE < desPose.pose.position.z) {
+                desPose.pose.position.z = MAX_ALTITUDE;
+        }
+
         double xq,yq,zq,wq;
         xq = msg->pose.orientation.x;
         yq = msg->pose.orientation.y;
@@ -104,10 +112,11 @@ void getDestinatonPose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
         tf2::Matrix3x3(q).getRPY(m_roll, m_pitch, m_yaw);
 
         /**
-         * If yaw into range of +- 10 degrees.
+         * If yaw into range of +- 15 degrees.
          * It should be continually updated orientation
          */
-        if (YAW_ANGLE(m_yaw) >= 10 || YAW_ANGLE(m_yaw) <= -10) {
+        if (YAW_ANGLE(m_yaw) >= ERROR_ACCEPTANCE_YAW_DEGREES    \
+            || YAW_ANGLE(m_yaw) <= -ERROR_ACCEPTANCE_YAW_DEGREES) {
                 q_update = AngleAxisf(0, Vector3f::UnitX()) *
                            AngleAxisf(0, Vector3f::UnitY()) *
                            AngleAxisf(cur_yaw - RATODE(10), Vector3f::UnitZ());
@@ -117,9 +126,12 @@ void getDestinatonPose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
         desPose.pose.orientation.y = q_update.y();
         desPose.pose.orientation.z = q_update.z();
         desPose.pose.orientation.w = q_update.w();
-        cout<< "Marker2Drone : " << PRECISION(desPose.pose.position.x) <<'\t'
-                                 << PRECISION(desPose.pose.position.y) << '\t'
-                                 << PRECISION(desPose.pose.position.z) << endl;
+
+// #ifdef LOG_INFO
+//         cout<< "Marker2Drone : " << PRECISION(desPose.pose.position.x) <<'\t'
+//                                  << PRECISION(desPose.pose.position.y) << '\t'
+//                                  << PRECISION(desPose.pose.position.z) << endl;
+// #endif /* LOG_INFO */
 }
 
 int main(int argc, char **argv) {
@@ -136,11 +148,11 @@ int main(int argc, char **argv) {
         cout << "======================================="<< endl;
 
         /* Init position */
-        cout << "\x1B[93m\u262D PLEASE ENTER INIT POSITION Local ENU frame [x y z] = \033[0m";
+        cout << "\x1B[93m\u262D ENTER INIT POSITION [x y z] = \033[0m";
         cin  >> desPose.pose.position.x >> desPose.pose.position.y >> desPose.pose.position.z;
-        cout << "\x1B[93mAxis x\033[0m : " << desPose.pose.position.x << "m" << endl;
-        cout << "\x1B[93mAxis y\033[0m : " << desPose.pose.position.y << "m" << endl;
-        cout << "\x1B[93mAxis z\033[0m : " << desPose.pose.position.z << "m" << endl;
+        cout << "\x1B[93mAxis x:\033[0m " << desPose.pose.position.x << "m" << endl;
+        cout << "\x1B[93mAxis y:\033[0m " << desPose.pose.position.y << "m" << endl;
+        cout << "\x1B[93mAxis z:\033[0m " << desPose.pose.position.z << "m" << endl;
 
         ros::init(argc, argv, "offboard_node");
         ros::NodeHandle nh;
@@ -178,10 +190,10 @@ int main(int argc, char **argv) {
         arm_cmd.request.value = true;
         ros::Time last_time = ros::Time::now();
 
-        // desPose.pose.orientation.x = 0;
-        // desPose.pose.orientation.y = 0;
-        // desPose.pose.orientation.z = 0.3826834;
-        // desPose.pose.orientation.w = 0.9238795;
+        desPose.pose.orientation.x = 0;
+        desPose.pose.orientation.y = 0;
+        desPose.pose.orientation.z = 0.3826834;
+        desPose.pose.orientation.w = 0.9238795;
 
         while(ros::ok()) {
 #ifdef HITL

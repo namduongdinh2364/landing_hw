@@ -12,7 +12,7 @@ from cv_bridge import CvBridge, CvBridgeError
 
 def main():
     rospy.init_node('Realsense_camera', anonymous=True)
-    image_pub = rospy.Publisher("image_rgb_topic", Image, queue_size=50)
+    image_pub = rospy.Publisher("/camera/color/image_raw", Image, queue_size=50)
     bridge = CvBridge()
     rate = rospy.Rate(20)
 
