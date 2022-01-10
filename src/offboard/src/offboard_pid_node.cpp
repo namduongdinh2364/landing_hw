@@ -23,12 +23,14 @@
 #include <geometry_msgs/TwistStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include "landing.h"
+#include "MiniPID.h"
 
 using namespace std;
 using namespace Eigen;
 
 static mavros_msgs::State current_state;
 static geometry_msgs::PoseStamped mavros_local_position_pose, desPose;
+static geometry_msgs::TwistStamped desVelocity;
 static Matrix3f imu_rotation_matrix;
 static bool check_state = true;
 static char next_status[20];
@@ -176,6 +178,18 @@ int main(int argc, char **argv) {
                 ("mavros/setpoint_velocity/cmd_vel", 10);
         ros::Rate rate(20.0);
 
+        /** Init PID*/ 
+        MiniPID pid_Ax = MiniPID(0.4, 0.0, 0.12);
+        MiniPID pid_Ay = MiniPID(0.4, 0.0, 0.12);
+        MiniPID pid_Az = MiniPID(0.4, 0.0, 0.12);
+
+        pid_Ax.setOutputLimits(-0.5, 0.5);
+        pid_Ay.setOutputLimits(-0.5, 0.5);
+        pid_Az.setOutputLimits(-0.5, 0.5);
+        pid_Ax.setOutputRampRate(0.02);
+        pid_Ay.setOutputRampRate(0.02);
+        pid_Az.setOutputRampRate(0.02);
+
         /* wait for FCU connection */
         while(ros::ok() && !current_state.connected) {
                 ros::spinOnce();
@@ -229,8 +243,37 @@ int main(int argc, char **argv) {
                                 last_time = ros::Time::now();
                         }
                 }
-              
-                mavros_setpoint_position_local_pub.publish(desPose);
+
+                if (abs(mavros_local_position_pose.pose.position.x - desPose.pose.position.x) <= 2) {
+                        pid_Ax.setOutputLimits(-0.5, 0.5);
+                        pid_Ay.setOutputLimits(-0.5, 0.5);
+                } 
+                else {
+                        pid_Ax.setOutputLimits(-1.0, 1.0);
+                        pid_Ay.setOutputLimits(-1.0, 1.0);
+                }
+
+                if (abs(mavros_local_position_pose.pose.position.z - desPose.pose.position.z) <= 4) {
+                        pid_Az.setOutputLimits(-0.5, 0.5);
+                } 
+                else {
+                        pid_Az.setOutputLimits(-1.0, 1.0);
+                }
+
+                double output_Ax, output_Ay, output_Az;
+                output_Ax = pid_Ax.getOutput(PRECISION(mavros_local_position_pose.pose.position.x), desPose.pose.position.x);
+                output_Ay = pid_Ay.getOutput(PRECISION(mavros_local_position_pose.pose.position.y), desPose.pose.position.y);
+                output_Az = pid_Az.getOutput(PRECISION(mavros_local_position_pose.pose.position.z), desPose.pose.position.z);
+
+                output_Ax = PRECISION(output_Ax);
+                output_Ay = PRECISION(output_Ay);
+                output_Az = PRECISION(output_Az);
+
+                desVelocity.twist.linear.x = output_Ax;
+                desVelocity.twist.linear.y = output_Ay;
+                desVelocity.twist.linear.z = output_Az;
+
+                mavros_setpoint_velocity_cmd_vel_pub.publish(desVelocity);
 
                 ros::spinOnce();
                 rate.sleep();

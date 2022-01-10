@@ -38,10 +38,22 @@ include_directories(
 # define HILT with mode simulation hardware
 add_definitions(-DSITL -DBAR=1)
 
-include_directories(src ../include)
+include_directories(src ../include include)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
-file(GLOB SOURCES "src/*.cpp")
+SET (OFFB_PID_SRCS
+    src/offboard_pid_node.cpp
+    src/MiniPID.cpp
+)
+
+SET (OFFB_SRCS
+    src/offboard_node.cpp
+)
+
+file(GLOB PID_SOURCES ${OFFB_PID_SRCS})
+file(GLOB SOURCES ${OFFB_SRCS})
+add_executable(offboard_pid_node ${PID_SOURCES})
 add_executable(offboard_node ${SOURCES})
-add_library(offboard_node_plugin SHARED src/offboard_node.cpp)
+# add_library(offboard_node_plugin SHARED src/offboard_node.cpp)
+target_link_libraries(offboard_pid_node ${catkin_LIBRARIES})
 target_link_libraries(offboard_node ${catkin_LIBRARIES})
