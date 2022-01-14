@@ -3,6 +3,7 @@
     Script ...
 """
 
+from operator import length_hint
 from numpy.core.fromnumeric import size
 import pyrealsense2 as rs
 import numpy as np
@@ -37,7 +38,7 @@ class MarkerDetector(ImageConverter):
         # self.cam_dist = np.array([7.2697873963251586e-02, -1.4749282442847444e-01, -2.3233094539353212e-03, 8.9165121414591982e-03,-2.6332902664556002e-01])
         self.cam_mtx = np.array([1179.598752, 0.0, 928.099247, 0.0, 1177.000389, 558.635461, 0.0, 0.0, 1.0]).reshape(3,3)
         self.cam_dist = np.array([0.061957, -0.124832, 0.002573, -0.004753, 0.0])
-        self.dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_50)
+        self.dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_5X5_50)
         self.param = cv2.aruco.DetectorParameters_create()
         self.font = cv2.FONT_HERSHEY_SIMPLEX
         self.param.adaptiveThreshConstant = 7
@@ -46,8 +47,8 @@ class MarkerDetector(ImageConverter):
                                      [0, 0, -1.0, -0.08],
                                      [0, 0, 0, 1.0]])
 
-        self.ids_target = 23
-        self.markerLength = 0.5
+        self.ids_target = 40
+        self.markerLength = 0.2
         rospy.loginfo("Init detect marker")
 
     @staticmethod
@@ -64,6 +65,19 @@ class MarkerDetector(ImageConverter):
         qz = az * sina / angle
         qw = cosa
         return qx, qy, qz, qw
+
+    @staticmethod
+    def get_area_marker(corners):
+        point1 = corners[0][0]
+        point2 = corners[0][1]
+        point3 = corners[0][2]
+
+        length = math.sqrt(math.pow((point2[0] - point1[0]), 2) +
+                           math.pow((point2[1] - point1[1]), 2))
+        width = math.sqrt(math.pow((point3[0] - point2[0]), 2) +
+                          math.pow((point3[1] - point2[1]), 2))
+
+        print(length*width)
 
     def start_get_pose(self):
         while not rospy.is_shutdown():
@@ -101,15 +115,18 @@ class MarkerDetector(ImageConverter):
                             transform.pose.orientation.w = qw
 
                             self.public_pose(transform)
-
+                            MarkerDetector.get_area_marker(corners[i])
+                            start_point = (int(corners[i][0][0][0]), int(corners[i][0][0][1]))
+                            end_point = (int(corners[i][0][2][0]), int(corners[i][0][2][1]))
+                            cv2.rectangle(self.cv_image, start_point, end_point, (0, 255, 225), 2)
                             # For debug
                             cv2.aruco.drawAxis(self.cv_image, self.cam_mtx, self.cam_dist, rvec, tvec, 0.1)
                             str_position0 = f"Marker Position in Camera frame: x={translation_vector[0]} y={translation_vector[1]} z={translation_vector[2]}"
                             cv2.putText(self.cv_image, str_position0, (0, 50),
                                         self.font, 0.7, (0, 255, 0), 1, cv2.LINE_AA)
                             self.image_message_pub(self.cv_image)
-                # cv2.imshow("frame", self.cv_image)
-                # cv2.waitKey(1)
+                cv2.imshow("frame", self.cv_image)
+                cv2.waitKey(1)
 
     def public_pose(self, pose_data):
         self.marker_pose_pb.publish(pose_data)
