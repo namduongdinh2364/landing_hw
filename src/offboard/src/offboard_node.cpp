@@ -30,7 +30,7 @@ using namespace Eigen;
 static mavros_msgs::State current_state;
 static geometry_msgs::PoseStamped mavros_local_position_pose, desPose;
 static Matrix3f imu_rotation_matrix;
-static bool check_state = true;
+static bool stop = false;
 static char next_status[20];
 double cur_roll, cur_pitch, cur_yaw;
 
@@ -135,23 +135,15 @@ void getDestinatonPose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
 
 int main(int argc, char **argv) {
         /* Display console */
-        cout<< "______  __   __    ___     _____    _____ " << endl;
-        cout<< "| ___ \\ \\ \\ / /   /   |   / ___ \\  | ___ \\" <<endl;
-        cout<< "| |_/ /  \\ V /   / /| |   | | | |  | |_/ |" <<endl;
-        cout<< "|  __/   /   \\  / /_| |   | | | |  |  __ /" <<endl;
-        cout<< "| |     / /^\\ \\ \\___  |   | |_| |  | |_/ \\" <<endl;
-        cout<< "\\_|     \\/   \\/     |_/   \\_____/  \\_____/\n\n" <<endl;
         cout << "-------Mode OFFBOARD CONTROL-------"<< endl;
-        cout << "======================================="<< endl;
-        cout << "\U0001F449 Control follow local position"<< endl;
         cout << "======================================="<< endl;
 
         /* Init position */
-        cout << "\x1B[93m\u262D ENTER INIT POSITION [x y z] = \033[0m";
+        cout << "INIT POSITION [x y z] = ";
         cin  >> desPose.pose.position.x >> desPose.pose.position.y >> desPose.pose.position.z;
-        cout << "\x1B[93mAxis x:\033[0m " << desPose.pose.position.x << "m" << endl;
-        cout << "\x1B[93mAxis y:\033[0m " << desPose.pose.position.y << "m" << endl;
-        cout << "\x1B[93mAxis z:\033[0m " << desPose.pose.position.z << "m" << endl;
+        cout << "x: " << desPose.pose.position.x << "m" << endl;
+        cout << "y: " << desPose.pose.position.y << "m" << endl;
+        cout << "z: " << desPose.pose.position.z << "m" << endl;
 
         ros::init(argc, argv, "offboard_node");
         ros::NodeHandle nh;
@@ -183,53 +175,29 @@ int main(int argc, char **argv) {
         }
 
         mavros_msgs::SetMode offboard_set_mode, takeoff_set_mode;
-        mavros_msgs::CommandBool arm_cmd;
         offboard_set_mode.request.custom_mode = "OFFBOARD";
         takeoff_set_mode.request.custom_mode = "AUTO.LAND";
-        arm_cmd.request.value = true;
-        ros::Time last_time = ros::Time::now();
 
-        desPose.pose.orientation.x = 0;
-        desPose.pose.orientation.y = 0;
-        desPose.pose.orientation.z = 0.3826834;
-        desPose.pose.orientation.w = 0.9238795;
+        cout << "[ INFO] ----- Waiting OFFBOARD switch \n";
+        while (ros::ok() && !current_state.armed && (current_state.mode != "OFFBOARD"))
+        {
+                ros::spinOnce();
+                rate.sleep();
+        }
+        cout << "[ INFO] --------------- READY --------------- \n";
 
-        while(ros::ok()) {
-#ifdef HITL
-                system("echo -n \"\e[4mWaiting for activation mode\e[0m\n\"");
-                system("echo -n \"OFFBOARD && ARMED mode...\"");
-                while(current_state.mode != "OFFBOARD" || !current_state.armed);
-                system("echo -e \"\\r\033[0;32m\xE2\x9C\x94\033[0m OFFBOARD && ARMED ready!!!\"");
-#else
-                if(check_state) {
-                        if(current_state.mode != "OFFBOARD" && (ros::Time::now() - last_time > ros::Duration(5.0))) {
-                                if(set_mode_client.call(offboard_set_mode) && offboard_set_mode.response.mode_sent) {
-                                        ROS_INFO("Offboard enabled");
-                                }
-                                last_time = ros::Time::now();
-                        } else {
-                                if(!current_state.armed && (ros::Time::now() - last_time > ros::Duration(5.0))) {
-                                        if(arming_client.call(arm_cmd) && arm_cmd.response.success) {
-                                                ROS_INFO("Vehicle armed");
-                                        }
-                                        last_time = ros::Time::now();
-                                }
-                        }
-                }
-#endif /* HITL */
+
+        while(ros::ok() && !stop) {
                 if(strcmp(next_status, "LAND") == 0) {
-                        last_time = ros::Time::now();
-
                         if(current_state.mode != "AUTO.LAND") {
                                 takeoff_set_mode.request.custom_mode = "AUTO.LAND";
                                 if(set_mode_client.call(takeoff_set_mode) && takeoff_set_mode.response.mode_sent) {
                                         ROS_INFO("AUTO LAND enabled");
-                                        check_state = false;
+                                        stop = true;
                                 }
-                                last_time = ros::Time::now();
                         }
                 }
-              
+
                 mavros_setpoint_position_local_pub.publish(desPose);
 
                 ros::spinOnce();

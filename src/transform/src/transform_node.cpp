@@ -1,5 +1,6 @@
 /**
- * 
+ * Input pose of marker to drone
+ * Output pose of marker to NEU
 */
 #include <iostream>
 #include <ros/ros.h>
