@@ -10,10 +10,17 @@ from cv_bridge import CvBridge
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import Image
 import math
+from image_dehaze import ImageDehze
 
-dir_marker_ids = [40, 12]
-
+# The list and directory contain marker's ID.
+# A marker couled be detected if it's ID into list and directory.
+dir_marker_ids = [40, 30, 12]
 aruco_marker= {
+    "30": {
+        "id": 30,
+        "size": 0.1,
+        "dictionary": "DICT_5X5_50"
+    },
     "12": {
         "id": 12,
         "size": 0.05,
@@ -63,8 +70,7 @@ class MarkerDetector(ImageConverter):
                                      [0, 0, 0, 1.0]])
         rospy.loginfo("Init detect marker")
 
-    @staticmethod
-    def vector3d_to_tf_quaternion(v3drvec):
+    def vector3d_to_tf_quaternion(self, v3drvec):
         ax = v3drvec[0]
         ay = v3drvec[1]
         az = v3drvec[2]
@@ -78,8 +84,7 @@ class MarkerDetector(ImageConverter):
         qw = cosa
         return qx, qy, qz, qw
 
-    @staticmethod
-    def get_area_marker(corners):
+    def get_area_marker(self, corners):
         point1 = corners[0][0]
         point2 = corners[0][1]
         point3 = corners[0][2]
@@ -99,35 +104,39 @@ class MarkerDetector(ImageConverter):
     def start_get_pose(self):
         while not rospy.is_shutdown():
             if self.cv_image is not None:
-                gray_image = cv2.cvtColor(self.cv_image, cv2.COLOR_RGB2GRAY)
-                corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(gray_image, self.dict, parameters=self.param)
+                """ Dehaze image with foggy weather. """
+                dehaze = ImageDehze()
+                image_dehazed = dehaze.get_image_dehaze(self.cv_image)
 
+                gray_image = cv2.cvtColor(image_dehazed, cv2.COLOR_RGB2GRAY)
+                corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(gray_image, self.dict, parameters=self.param)
                 if np.all(ids is not None):
                     list_size_markers = []
-
                     """ Get the biggest size form all of detected markers. """
                     for marker_id in dir_marker_ids:
                         for index, id in enumerate(ids):
                             if marker_id == id:
-                                pixel_area_marker = MarkerDetector.get_area_marker(corners[index])
+                                pixel_area_marker = self.get_area_marker(corners[index])
                                 info_marker = {'id': marker_id,
                                                 'size': aruco_marker[str(marker_id)]['size'],
                                                 'corners': corners[index],
                                                 'area': pixel_area_marker}
                                 list_size_markers.append(info_marker)
-                    
-                    """ Get Pose. """20000
+
+                    """ Get Pose. """
                     if list_size_markers:
                         list_size_markers.sort(key=lambda x: x.get('size'), reverse = True)
                         corners = None
                         markerLength = None
                         for elem in list_size_markers:
                             if len(list_size_markers) > 1:
+                                # Select a marker have the pixcel area under allowed bound
                                 if elem['area'] < 50000:
                                     corners = elem['corners']
                                     markerLength = elem['size']
                                     # print(elem['area'])
                                     break
+                            # If detect only one marker
                             else:
                                 corners = elem['corners']
                                 markerLength = elem['size']
@@ -151,7 +160,7 @@ class MarkerDetector(ImageConverter):
                             transform.pose.position.x = data[0]
                             transform.pose.position.y = data[1]
                             transform.pose.position.z = data[2]
-                            qx, qy, qz, qw = MarkerDetector.vector3d_to_tf_quaternion(rvec)
+                            qx, qy, qz, qw = self.vector3d_to_tf_quaternion(rvec)
                             transform.pose.orientation.x = qx
                             transform.pose.orientation.y = qy
                             transform.pose.orientation.z = qz
@@ -160,11 +169,12 @@ class MarkerDetector(ImageConverter):
                             self.public_pose(transform)
                             # For debug
                             str_position0 = f"Marker Position in Camera frame: x={translation_vector[0]} y={translation_vector[1]} z={translation_vector[2]}"
-                            cv2.putText(self.cv_image, str_position0, (0, 50),
+                            cv2.putText(image_dehazed, str_position0, (0, 50),
                                         self.font, 0.7, (0, 255, 0), 1, cv2.LINE_AA)
-                            self.image_message_pub(self.cv_image)
+                            self.image_message_pub(image_dehazed)
     
-                cv2.imshow("frame", self.cv_image)
+                cv2.imshow("frame", image_dehazed)
+                cv2.imshow("frame1", self.cv_image)
                 cv2.waitKey(1)
 
     def public_pose(self, pose_data):

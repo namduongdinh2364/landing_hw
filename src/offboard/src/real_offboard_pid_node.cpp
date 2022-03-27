@@ -222,7 +222,7 @@ int main(int argc, char **argv) {
                 if (abs(mavros_local_position_pose.pose.position.x - desPose.pose.position.x) <= 2) {
                         pid_Ax.setOutputLimits(-0.5, 0.5);
                         pid_Ay.setOutputLimits(-0.5, 0.5);
-                } 
+                }
                 else {
                         pid_Ax.setOutputLimits(-1.0, 1.0);
                         pid_Ay.setOutputLimits(-1.0, 1.0);
