@@ -88,7 +88,6 @@ void getDestinatonPose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
         desPose.pose.position.x = msg->pose.position.x;
         desPose.pose.position.y = msg->pose.position.y;
         desPose.pose.position.z = msg->pose.position.z;
-
         /**
          * If the destination greater than the maximum altitude,
          * it should be set to the value MAX_ALTITUDE.
@@ -96,41 +95,6 @@ void getDestinatonPose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg)
         if(MAX_ALTITUDE < desPose.pose.position.z) {
                 desPose.pose.position.z = MAX_ALTITUDE;
         }
-
-        double xq,yq,zq,wq;
-        xq = msg->pose.orientation.x;
-        yq = msg->pose.orientation.y;
-        zq = msg->pose.orientation.z;
-        wq = msg->pose.orientation.w;
-
-        tf2::Quaternion q;
-        Quaternionf q_update;
-        double m_roll, m_pitch, m_yaw, output_yaw;
-
-        q.setValue(xq, yq, zq, wq);
-        tf2::Matrix3x3(q).getRPY(m_roll, m_pitch, m_yaw);
-
-        /**
-         * If yaw into range of +- 15 degrees.
-         * It should be continually updated orientation
-         */
-        if (YAW_ANGLE(m_yaw) >= ERROR_ACCEPTANCE_YAW_DEGREES    \
-            || YAW_ANGLE(m_yaw) <= -ERROR_ACCEPTANCE_YAW_DEGREES) {
-                q_update = AngleAxisf(0, Vector3f::UnitX()) *
-                           AngleAxisf(0, Vector3f::UnitY()) *
-                           AngleAxisf(cur_yaw - RATODE(10), Vector3f::UnitZ());
-        }
-
-        desPose.pose.orientation.x = q_update.x();
-        desPose.pose.orientation.y = q_update.y();
-        desPose.pose.orientation.z = q_update.z();
-        desPose.pose.orientation.w = q_update.w();
-
-// #ifdef LOG_INFO
-//         cout<< "Marker2Drone : " << PRECISION(desPose.pose.position.x) <<'\t'
-//                                  << PRECISION(desPose.pose.position.y) << '\t'
-//                                  << PRECISION(desPose.pose.position.z) << endl;
-// #endif /* LOG_INFO */
 }
 
 int main(int argc, char **argv) {
