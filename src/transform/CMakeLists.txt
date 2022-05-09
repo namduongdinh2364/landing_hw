@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(transform)
+project(adaptive_transform)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
@@ -26,6 +26,6 @@ include_directories(
         ${catkin_INCLUDE_DIRS}
 )
 include_directories(src ../include)
-file(GLOB SOURCES src/*.cpp)
+file(GLOB SOURCES src/adative_transform_node.cpp)
 add_executable(${PROJECT_NAME}_node ${SOURCES})
 target_link_libraries(${PROJECT_NAME}_node ${catkin_LIBRARIES})

@@ -33,7 +33,7 @@
 
 #define TIME_NOW                ros::Time::now()
 #define TIME_DURATION(x)        ros::Duration(x)
-// #define LOG_INFO                1
+#define LOG_INFO                1
 
 
 #endif /* LANDING_H */

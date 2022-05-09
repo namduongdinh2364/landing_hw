@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-    <name>transform</name>
+    <name>adaptive_transform</name>
     <version>0.1.1</version>
     <description>The subscribe package.</description>
     <maintainer email="abc@todo.todo">abc</maintainer>
